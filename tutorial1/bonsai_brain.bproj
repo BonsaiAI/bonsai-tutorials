@@ -1,0 +1,9 @@
+{
+    "files": [
+        "move_a_point.ink"
+    ],
+    "training": {
+        "command": "python move_a_point.py",
+        "simulator": "openai.gym"
+    }
+}
