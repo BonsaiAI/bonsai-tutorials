@@ -1,13 +1,15 @@
 schema GameState
-    # EXERCISE: Create a name (and type) for each variable of your current and
-    # target positions. These have to match the dictionary returned by get_state() our simulator.
-    # <Your code goes here>
+    # These names (and types) have to match the dictionary returned by get_state() our simulator.
+    Float32 current_x,
+    Float32 current_y,
+    Float32 target_x,
+    Float32 target_y
 end
 
 schema PlayerMove
-    # EXERCISE: This name (and type) has to match the parameter to advance() in
-    # our simulator. You need to specify the range and step size for the action.
-    # <Your code goes here>
+    # This name (and type) has to match the parameter to advance() in
+    # our simulator. We specify the range and step size for the action.
+    Float32{0:1.575:6.283} direction_radians
 end
 
 schema SimConfig
