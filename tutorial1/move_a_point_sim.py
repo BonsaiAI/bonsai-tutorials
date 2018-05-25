@@ -81,7 +81,6 @@ class PointSimulator(bonsai_ai.Simulator):
     def simulate(self, action):
         """ Function to make a move based on output from the BRAIN as defined
         in the Inkling file.
-
         Args:
             action: a dictionary with one key: 'direction_radians'
         """
@@ -92,7 +91,15 @@ class PointSimulator(bonsai_ai.Simulator):
         state = self._get_state()
         # Reward for getting closer, with a penalty of 1 for each step.
         # The penalty encourages the brain to finish faster
-        reward = -distance(self.current, self.target) - 1
+        if self.objective_name == "reward_closeness":
+            reward = -distance(self.current, self.target) - 1
+        elif self.predict:
+            # no reward in prediction mode
+            reward = 0
+            print(self.steps)
+        else:
+            # not in prediction mode, and unexpected objective name
+            raise ValueError("Unknown objective: {}".format(self.objective_name))
         return (state, reward, self._is_terminal())
 
 
@@ -117,4 +124,3 @@ if __name__ == "__main__":
     print('starting...')
     while sim.run():
         continue
-    
