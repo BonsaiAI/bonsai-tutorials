@@ -1,6 +1,6 @@
 schema GameState
-    # EXERCISE: Create a name (and type) for each variable of your current and
-    # target positions. These have to match the dictionary returned by get_state() our simulator.
+    # EXERCISE: Create a name (and type) for each variable of x and y position.
+    These have to match the dictionary returned by get_state() our simulator.
     # <Your code goes here>
 end
 
@@ -11,21 +11,21 @@ schema PlayerMove
 end
 
 schema SimConfig
-    # The sim doesn't have any configuration, but Inkling requires
-    # that we have to have a schema anyway (for now).
+    # The simulator doesn't have any configuration, but Inkling requires
+    # that we have a schema anyway.
     Int8 dummy
 end
 
 # This will be our only concept -- trying to get to the target
 concept find_the_target
-    is classifier      # We're picking one of a few options
+    is classifier
     predicts (PlayerMove)
     follows input(GameState)
     feeds output
 end
 
 # This is the Inkling name of our simulator. It has to match the parameter
-# passed to the PointSimulator() constructor, but does not have to match the
+# to bonsai.run_for_training_or_prediction(), but does not have to match the
 # name of the Python file.
 simulator move_a_point_sim(SimConfig)
     action (PlayerMove)
@@ -39,11 +39,11 @@ curriculum learn_curriculum
     # this is our simulator name
     with simulator move_a_point_sim
     # This is the name of our objective function in the simulator
-    objective reward_closeness
+    objective reward_shaped
         lesson get_close 
             configure
                 constrain dummy with Int8{-1}
             until
                 # This is again the name of the objective function
-                maximize reward_closeness
+                maximize reward_shaped
 end
