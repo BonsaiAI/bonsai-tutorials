@@ -19,48 +19,26 @@ def distance(p1, p2):
     x2,y2 = p2
     return math.hypot(x1-x2, y1-y2)
 
-
-class PointSimulator(bonsai_ai.Simulator):
+class PointSimulation:
     """
-    Our simulator will take moves (eventually from our Inkling file),
-    and return the states that result from those moves. It also defines our reward function:
-    being close to the target state.
+    Simulate an agent moving in the plane that contains a target point. 
+    The simulation takes moves and computes the states that result from those moves. 
     """
 
     STEP_SIZE = 0.1  # how far to step each turn
-    MAX_STEPS = 20   # Need to be able to go a max distance of roughly
-                      # 1.4, so this should be enough if the policy
-                      # is good.
     PRECISION = 0.15 # For the simple task, let's just get to the right
                       # area -- no need to make the AI learn to work
                       # around the fixed step size by detouring.
 
     def __init__(self, *args):
-        self.num_episodes = 0
         super().__init__(*args)
 
-    def _move_current(self, direction_radians):
+   
+    def reset(self):
         """
-        Move the current point STEP_SIZE in the given direction.
+        Reset simulation state -- call before each episode.
         """
-        self.previous = self.current
-        new_x = self.current[0] + self.STEP_SIZE * math.cos(direction_radians)
-        new_y = self.current[1] + self.STEP_SIZE * math.sin(direction_radians)
-        self.current = (new_x, new_y)
-
-    def _is_terminal(self):
-        """
-        We're done either if the AI gets close enough to the target
-        state, or if too much time passes.
-        """
-        return ((distance(self.current, self.target) < self.PRECISION) or
-                self.steps >= self.MAX_STEPS)
-
-
-    def _reset(self):
-        """ Reset is called to reset simulator state before the next training session.
-        """
-        debug('_reset')
+        debug('reset')
         def choose_points():
             # Target is a random point in [0,1]**2
             self.target = (random(), random())
@@ -69,13 +47,82 @@ class PointSimulator(bonsai_ai.Simulator):
 
         choose_points()
         # re-choose till we start far enough away
-        while distance(self.current, self.target) <= self.PRECISION:
+        while self.game_over():
             choose_points()
 
-        self.previous = self.current
         self.steps = 0
-        self.num_episodes += 1
         self.initial_distance = distance(self.current, self.target)
+    
+    def game_over(self):
+        """
+        Simulation ends if the agent gets close enough to the target
+        position.
+        """
+        return distance(self.current, self.target) < self.PRECISION
+
+    
+    def _move_current(self, direction_radians):
+        """
+        Move the current point STEP_SIZE in the given direction.
+        """
+        new_x = self.current[0] + self.STEP_SIZE * math.cos(direction_radians)
+        new_y = self.current[1] + self.STEP_SIZE * math.sin(direction_radians)
+        self.current = (new_x, new_y)
+
+        
+    def step(self, direction_radians):
+        """
+        Take a step in the specified direction. 
+        (Note: function name could be read as bo†h "step the simulation time one tick"
+         and "take a step in a direction")
+
+        Args:
+            direction_radians: where to go
+        """        
+        debug("step", direction_radians)
+        self._move_current(direction_radians)
+        self.steps += 1
+
+        if self.game_over():
+            print("Initial distance: {:.3f}. Took {} steps.".format(self.initial_distance, self.steps))
+    
+
+class PointBonsaiBridge(bonsai_ai.Simulator):
+    """
+    This class connects the Bonsai brain to a PointSimulation.
+    It also defines our reward function: getting closer to the target state.
+    """
+
+    # The simulation doesn't have a timeout, but we want to add one, to prevent
+    # the BRAIN from wandering too far in the wrong direction.
+    MAX_STEPS = 20    #  Need to be able to go a max distance of roughly
+                      # 1.4, so this should be enough if the policy
+                      # is good.
+
+    def __init__(self, *args):
+        self.num_episodes = 0
+        self.simulation = PointSimulation()
+        super().__init__(*args)
+
+    def _is_terminal(self):
+        """
+        We're done either if the AI gets close enough to the target
+        state, or if too many steps have passed.
+        """
+        return (self.simulation.game_over() or
+                self.simulation.steps >= self.MAX_STEPS)
+
+
+    def _reset_sim(self):
+        """
+        Reset simulator state before the next training episode.
+        """
+        self.simulation.reset()
+
+        # to compute our reward, we need to track the previous point
+        # as well as the current.
+        self.previous = self.simulation.current
+        self.num_episodes += 1
         if self.num_episodes % 100 == 0:
             print(".", file=sys.stderr)
 
@@ -84,49 +131,52 @@ class PointSimulator(bonsai_ai.Simulator):
         """ called at the start of every episode. should
         reset the simulation and return the initial state
         """
-        self._reset()
+        self._reset_sim()
         return self._get_state()
-        
+
+
     def simulate(self, action):
-        """ Function to make a move based on output from the BRAIN as defined
+        """
+        Simulate one step. Takes the action from the BRAIN as defined
         in the Inkling file.
 
         Args:
             action: a dictionary with one key: 'direction_radians'
+        Returns:
+            (state, reward, terminal) tuple, where state is a dict with keys 
+                defined in the Inkling schema
         """
         direction = action["direction_radians"]
         
-        debug("advance", direction)
-        self._move_current(direction)
-        self.steps += 1
+        # save where we are
+        self.previous = self.simulation.current
+
+        # take a step
+        self.simulation.step(direction)
+
+        # pull the current and target points from the simulation. 
+        # We're tracking self.previous directly...
+        current = self.simulation.current
+        target = self.simulation.target
+
+        # NOTE: self.objective_name, with value "reward_shaped" in this case, is available if
+        # you have multiple objectives in your Inkling 
+        reward = self.reward_shaped(current, self.previous, target)
 
         state = self._get_state()
         terminal = self._is_terminal()
 
-        if self.objective_name == "reward_shaped":
-            reward = self.reward_shaped()
-        elif self.predict:
-            # no reward in prediction mode
-            reward = 0
-            if terminal:
-                print("Initial distance: {:.3f}. Took {} steps.".format(self.initial_distance, self.steps))
-        else:
-            # not in prediction mode, and unexpected objective name
-            raise ValueError("Unknown objective: {}".format(self.objective_name))
-        
         return (state, reward, terminal)
 
 
     def _get_state(self):
-        """ Gets the state of the simulator, whether it be a valid value or
-        terminal ("game over") state.
+        """ Gets the state of the simulation, converting it to the form specified in Inkling.
         """
-        debug("get_state")
-        debug("state", self.current, self.previous, self.target)
+        current = self.simulation.current
+        target = self.simulation.target
 
-        state = {"dx": self.target[0] - self.current[0],
-                 "dy": self.target[1] - self.current[1],
-                 }
+        state = {"dx": target[0] - current[0],
+                 "dy": target[1] - current[1],}
 
         return state
 
@@ -137,12 +187,13 @@ class PointSimulator(bonsai_ai.Simulator):
         progress = distance(previous, target) - distance(current, target)
 
         # normalize by step size, so now in [-1,1]
-        progress /= self.STEP_SIZE
+        progress /= self.simulation.STEP_SIZE
 
         # if positive, square to encourage moving toward the target more directly
         if progress > 0:
             progress **= 2
-        # if moving away, penalize by extra factor of 2 to discourage wandering toward and away.
+        # if moving away, penalize by extra factor of 2 to discourage wandering toward 
+        # and then away.
         else:
             progress *= 2
             # and subtract an extra 1.
@@ -150,11 +201,11 @@ class PointSimulator(bonsai_ai.Simulator):
 
         return progress
 
-    def reward_shaped(self):
+    def reward_shaped(self, current, previous, target):
         """Reward for approaching target"""
         if self._is_terminal():
-            return self.MAX_STEPS - self.steps
-        return self._shape_reward(self.current, self.previous, self.target)
+            return self.MAX_STEPS - self.simulation.steps
+        return self._shape_reward(current, previous, target)
 
 
 if __name__ == "__main__":
