@@ -211,7 +211,7 @@ class PointBonsaiBridge(bonsai_ai.Simulator):
 if __name__ == "__main__":
     config = bonsai_ai.Config(sys.argv)
     brain = bonsai_ai.Brain(config)
-    sim = PointSimulator(brain, "move_a_point_sim")
+    sim = PointBonsaiBridge(brain, "move_a_point_sim")
     print('starting...')
     while sim.run():
         continue
