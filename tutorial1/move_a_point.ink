@@ -1,6 +1,6 @@
 schema GameState
     # EXERCISE: Create a name (and type) for each variable of x and y position.
-    These have to match the dictionary returned by get_state() our simulator.
+    # These have to match the dictionary returned by get_state() our simulator.
     # <Your code goes here>
 end
 
