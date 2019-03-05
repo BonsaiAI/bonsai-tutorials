@@ -5,7 +5,7 @@ schema GameState
 end
 
 schema PlayerMove
-    # EXERCISE: This name (and type) has to match the parameter to advance() in
+    # EXERCISE: This name (and type) has to match the parameter to step() in
     # our simulator. You need to specify the range and step size for the action.
     # <Your code goes here>
 end
